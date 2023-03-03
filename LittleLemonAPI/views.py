@@ -81,7 +81,7 @@ def menu_items(request):
         # if it is a manager:
         managers = Group.objects.get(name='Manager')
         if validate_role('Manager', managers, username):
-            if request.method == 'POST':
+            if request.method == 'POST' :
                 # creates a menu item
                 try:
                     title = request.data['title']
@@ -94,10 +94,26 @@ def menu_items(request):
                     return Response(status=status.HTTP_201_CREATED)
                 except Exception as e:
                     return Response({'message:':'please make sure you are sending all paramenters', 'exception' : str(e)}, status=status.HTTP_400_BAD_REQUEST)
-                
+                     
             elif request.method == 'PUT' or request.method == 'PATCH':
-                # updates a menu item
-                return Response(status=status.HTTP_201_CREATED)
+                 try:
+                    item = MenuItem.objects.get(id = request.data['itemId'])
+                    if item:
+                        title = request.data['title']
+                        price = request.data['price']
+                        featured = request.data['featured']
+                        categoryId = request.data['categoryId']
+                        category = Category.objects.get(id = categoryId)
+                        item = MenuItem(title = title, price = price, featured = featured, category = category)
+                        item.save()
+                        return Response(status=status.HTTP_201_CREATED)
+                    else:
+                        return Response({'message:':'could not find that item'}, status=status.HTTP_404_NOT_FOUND)
+                 except KeyError as e:
+                    return Response({'message:':'keyerror', 'exception' : str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                 except Exception as e:
+                    return Response({'message:':'please make sure you are sending at least one field', 'exception' : str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                
             elif request.method == 'DELETE':
                 # deletes a menu item
                 return Response(status=status.HTTP_200_OK)
