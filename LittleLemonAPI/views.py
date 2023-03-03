@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, IsAuthenticatedOrReadOnly
-from .models import MenuItem
+from .models import MenuItem, Category
 
 from django.contrib.auth.models import User, Group
 
@@ -72,13 +72,36 @@ def menu_items(request):
     except:
         return Response({'message:':'please send the username parameter'}, status=status.HTTP_400_BAD_REQUEST)
     
-    managers = Group.objects.get(name='Manager')
-    
     if username: 
+        # Get has the same result for everyone
+        if request.method == 'GET':
+                menu = MenuItem.objects.all().values()
+                return Response({'data' : menu}, status=status.HTTP_200_OK)
+        
+        # if it is a manager:
+        managers = Group.objects.get(name='Manager')
         if validate_role('Manager', managers, username):
+            if request.method == 'POST':
+                # creates a menu item
+                try:
+                    title = request.data['title']
+                    price = request.data['price']
+                    featured = request.data['featured']
+                    categoryId = request.data['categoryId']
+                    category = Category.objects.get(id = categoryId)
+                    item = MenuItem(title = title, price = price, featured = featured, category = category)
+                    item.save()
+                    return Response(status=status.HTTP_201_CREATED)
+                except Exception as e:
+                    return Response({'message:':'please make sure you are sending all paramenters', 'exception' : str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                
+            elif request.method == 'PUT' or request.method == 'PATCH':
+                # updates a menu item
+                return Response(status=status.HTTP_201_CREATED)
+            elif request.method == 'DELETE':
+                # deletes a menu item
+                return Response(status=status.HTTP_200_OK)
             
-            menu = MenuItem.objects.all().values()
-            return Response({'message:':'it is a manager', 'data' : menu}, status=status.HTTP_200_OK)
         else:
             pass
 
