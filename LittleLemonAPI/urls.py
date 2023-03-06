@@ -5,4 +5,5 @@ urlpatterns = [
     path('groups/manager/users', views.managers),
     path('groups/delivery-crew/users', views.delivery_crew),
     path('menu-items', views.menu_items),
+    path('menu-items/<int:menu_item_id>', views.single_menu_item),
 ]
