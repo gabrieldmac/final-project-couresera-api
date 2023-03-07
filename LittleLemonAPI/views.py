@@ -170,17 +170,28 @@ def single_menu_item(request, menu_item_id):
 @permission_classes([IsAuthenticated])
 def cart_items(request):
     if request.method == 'GET':
-        menu = Cart.objects.all().values()
-        return Response({'data' : menu}, status=status.HTTP_200_OK)
+        
+        user_id = Token.objects.get(key=request.auth.key).user_id
+        cart = Cart.objects.filter(user_id = user_id).values()
+        return Response({'data' : cart}, status=status.HTTP_200_OK)
     if request.method == 'POST':
         try:
-            user = request.data['title']
-            menuItem = request.data['price']
-            quantity = request.data['featured']
-            unit_price = request.data['categoryId']
-            item = Cart(user = user, menuitem = menuItem, quantity = quantity, unit_price = unit_price)
+            user = Token.objects.get(key=request.auth.key).user
+            menu_item_id = request.data['menuItemId']
+            menuItem = get_object_or_404(MenuItem, pk=menu_item_id)
+            quantity = request.data['quantity']
+            unit_price = menuItem.price
+            price = int(quantity) * int(unit_price)
+            item = Cart(user = user, menuitem = menuItem, quantity = quantity, unit_price = unit_price, price = price)
             item.save()
             return Response(status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'message:':'please make sure you are sending all paramenters', 'exception' : str(e)}, status=status.HTTP_400_BAD_REQUEST)
-                     
+    if request.method == 'DELETE':
+        try:
+            user_id = Token.objects.get(key=request.auth.key).user_id
+            cart = Cart.objects.filter(user_id = user_id)
+            cart.delete()
+            return Response({'message:':'Cart deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({'message:':'please make sure you are sending all paramenters', 'exception' : str(e)}, status=status.HTTP_400_BAD_REQUEST)
