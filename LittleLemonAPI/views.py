@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, IsAuthenticatedOrReadOnly
-from .models import MenuItem, Category, Cart
+from .models import MenuItem, Category, Cart, Order, OrderItem
 from .serializers import MenuItemSerializer
 from rest_framework.authtoken.models import Token
 
@@ -137,16 +137,22 @@ def menu_items(request):
     return Response({'message:':'We could not find that user'}, status=status.HTTP_404_NOT_FOUND)
 
 
-@api_view(['DELETE', 'GET'])
+@api_view(['DELETE', 'GET', 'POST', 'PATCH', 'PUT'])
 @permission_classes([IsAuthenticated])
 def single_menu_item(request, menu_item_id):
+    # Double checking if user exists
     try:
         user_id = Token.objects.get(key=request.auth.key).user_id
         user = User.objects.get(id=user_id)
-        perm = user.groups.get()
         
     except:
         return Response({'message:':'We could not find that user'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Checking if user has a group, if not it's a customer, so return None
+    try:
+        perm = user.groups.get()
+    except:
+        perm = None
     
     if user: 
         # Get has the same result for everyone
@@ -165,7 +171,7 @@ def single_menu_item(request, menu_item_id):
 
     return Response({ "error" : "error"}, status.HTTP_400_BAD_REQUEST )
 
-
+# Cart Section
 @api_view(['GET', 'POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def cart_items(request):
@@ -195,3 +201,47 @@ def cart_items(request):
             return Response({'message:':'Cart deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({'message:':'please make sure you are sending all paramenters', 'exception' : str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# Order Section
+
+@api_view(['GET', 'POST', 'DELETE', 'PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def orders(request):
+    # Double checking if user exists
+    try:
+        user_id = Token.objects.get(key=request.auth.key).user_id
+        user = User.objects.get(id=user_id)
+
+    except:
+        return Response({'message:':'We could not find that user'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Checking if user has a group, if not it's a customer, so return None
+    try:
+        perm = user.groups.get()
+    except:
+        perm = None
+    
+    if request.method == 'GET':
+        # For Customers
+        if perm == None:
+            user_id = Token.objects.get(key=request.auth.key).user_id
+            orders = Order.objects.filter(user_id = user_id).values()
+            return Response({'data' : orders}, status=status.HTTP_200_OK)
+        # For Delivery Crew
+        if perm.name == 'Delivery Crew':
+            user_id = Token.objects.get(key=request.auth.key).user_id
+            orders = Order.objects.filter(delivery_crew = user_id).values()
+            return Response({'data' : orders}, status=status.HTTP_200_OK)
+
+        # For Managers
+        if perm.name == 'Manager':
+            orders = Order.objects.all().values()
+            return Response({'data' : orders}, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        user_id = Token.objects.get(key=request.auth.key).user_id
+        user = Token.objects.get(key=request.auth.key).user
+        cart = Cart.objects.filter(user_id = user_id).values()
+        order = OrderItem(user, )
+
+    
