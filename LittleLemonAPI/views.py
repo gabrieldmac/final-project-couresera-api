@@ -7,6 +7,7 @@ from .models import MenuItem, Category, Cart, Order, OrderItem
 from .serializers import MenuItemSerializer, OrderSerializer
 from rest_framework.authtoken.models import Token
 from datetime import datetime
+import random
 
 
 
@@ -248,9 +249,7 @@ def orders(request):
                 total_cart_price = 0
                 for item in cart:
                     total_cart_price = total_cart_price + item.get('price')
-                # TODO Make the delivery crew user random
-                delivery_crew = User.objects.get(id=3)
-                order = Order(user = user, delivery_crew = delivery_crew, status = 0, total = total_cart_price,  date = datetime.now())                
+                order = Order(user = user, delivery_crew = None, status = 0, total = total_cart_price,  date = datetime.now())                
                 order.save()
 
                 for item in cart:
@@ -278,7 +277,7 @@ def orders(request):
             return Response({'message:':'You do not have access to this endpoint'}, status=status.HTTP_403_FORBIDDEN)
 
         
-@api_view(['GET', 'POST', 'DELETE', 'PUT', 'PATCH'])
+@api_view(['GET', 'DELETE', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def single_order(request, order_id):
     # Double checking if user exists
@@ -295,9 +294,45 @@ def single_order(request, order_id):
     except:
         perm = None
     
-    
+    # getting the order object
+    order = get_object_or_404(Order, pk=order_id)
     
     if perm == None and request.method == 'GET':
-        item = get_object_or_404(Order, pk=order_id)
-        serialized_item = OrderSerializer(item)
-        return Response({'data':serialized_item.data}, status=status.HTTP_200_OK)
+        
+        serialized_order = OrderSerializer(order)
+        return Response({'data':serialized_order.data}, status=status.HTTP_200_OK)
+
+    elif perm.name == 'Manager' and (request.method == 'PUT' or request.method == 'PATCH'):
+        delivery_crew_users = list(User.objects.filter(groups__name__in=['Delivery Crew']))
+        delivery_crew = random.sample(delivery_crew_users,1)[0]
+        
+
+        if order.delivery_crew == None:
+            order.delivery_crew = delivery_crew
+            order.status = True
+            order.save()
+            return Response({"message": f"Delivery crew assigned: {delivery_crew.username}"}, status=status.HTTP_202_ACCEPTED)
+        elif order.status == True:
+            return Response({'message': 'Order already delivered'}, status=status.HTTP_202_ACCEPTED)
+        elif order.status == False:
+            order.status = True
+            order.save()
+            return Response({'message': 'Order going to deliver'},status=status.HTTP_202_ACCEPTED)
+        else: 
+            return Response({'message:':'generic error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    elif perm.name == 'Delivery Crew' and request.method == 'PATCH':
+        if order.status == False:
+            order.status = True
+            order.save()
+            return Response({'message': 'Confirmed that order is delivered'}, status=status.HTTP_202_ACCEPTED)
+        else:
+            return Response({'message': 'Order was already delivered or does not exists'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif perm.name == 'Manager' and request.method == 'DELETE':
+        try:
+            order.delete()
+        except Exception as e:
+            return Response({'message:':'There was a problem deleting this order', 'exception' : str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({'message:':'Cart deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
