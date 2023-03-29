@@ -4,8 +4,9 @@ from rest_framework import status, serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, IsAuthenticatedOrReadOnly
 from .models import MenuItem, Category, Cart, Order, OrderItem
-from .serializers import MenuItemSerializer
+from .serializers import MenuItemSerializer, OrderSerializer
 from rest_framework.authtoken.models import Token
+from datetime import datetime
 
 
 
@@ -237,11 +238,66 @@ def orders(request):
         if perm.name == 'Manager':
             orders = Order.objects.all().values()
             return Response({'data' : orders}, status=status.HTTP_200_OK)
+    if request.method == 'POST':
+        if perm == None:
+            # Return all cart items from the current user
+            try:
+                user_id = Token.objects.get(key=request.auth.key).user_id
+                cart_object = Cart.objects.filter(user_id = user_id)
+                cart = cart_object.values()
+                total_cart_price = 0
+                for item in cart:
+                    total_cart_price = total_cart_price + item.get('price')
+                # TODO Make the delivery crew user random
+                delivery_crew = User.objects.get(id=3)
+                order = Order(user = user, delivery_crew = delivery_crew, status = 0, total = total_cart_price,  date = datetime.now())                
+                order.save()
 
-    elif request.method == 'POST':
+                for item in cart:
+                    menuitem = MenuItem.objects.get(id=item.get('menuitem_id'))
+
+                    order_item = OrderItem(order = order, menuitem = menuitem, quantity = item.get('quantity'), unit_price = item.get('unit_price'), price = item.get('price'))
+                    order_item.save()
+
+                print('BEFORE DELETE CART')
+                cart_object.delete()
+
+                return Response(status=status.HTTP_201_CREATED)
+
+
+            except Exception as e:
+                return Response({'message:':'generic error', 'exception' : str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+            
+
+
+
+        else:
+            return Response({'message:':'You do not have access to this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+
+        
+@api_view(['GET', 'POST', 'DELETE', 'PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def single_order(request, order_id):
+    # Double checking if user exists
+    try:
         user_id = Token.objects.get(key=request.auth.key).user_id
-        user = Token.objects.get(key=request.auth.key).user
-        cart = Cart.objects.filter(user_id = user_id).values()
-        order = OrderItem(user, )
+        user = User.objects.get(id=user_id)
 
+    except:
+        return Response({'message:':'We could not find that user'}, status=status.HTTP_404_NOT_FOUND)
     
+    # Checking if user has a group, if not it's a customer, so return None
+    try:
+        perm = user.groups.get()
+    except:
+        perm = None
+    
+    
+    
+    if perm == None and request.method == 'GET':
+        item = get_object_or_404(Order, pk=order_id)
+        serialized_item = OrderSerializer(item)
+        return Response({'data':serialized_item.data}, status=status.HTTP_200_OK)
